@@ -134,39 +134,30 @@ export function chromaticAberration(colorNode, {
  * Bildschirmdifferenz als Verschiebungsvektor benutzt. Das erfasst Schwenks,
  * Fahrten und Rollen exakt – also genau den Teil, der etwas beiträgt.
  */
-export function cameraMotionBlur(colorNode, depthTextureNode, {
-  strength, prevViewProj, camBasis, maxLengthPx = 26, samples = 10,
+export function cameraMotionBlur(colorNode, velocityTextureNode, {
+  strength, maxLengthPx = 26, samples = 10,
 } = {}) {
   const src = rtt(colorNode);
   const n = Math.max(3, samples | 0);
 
   return Fn(() => {
-    const d = depthTextureNode.sample(screenUV).r.toVar();
-
-    // Hintergrund (leerer Tiefenpuffer) nicht verwischen
-    const isBackground = d.lessThanEqual(0.0);
-
-    // Weltpunkt aus Kamerabasis und linearer Tiefe rekonstruieren.
-    // Die inverse Sicht-Projektions-Matrix als Uniform liefert im Postpfad
-    // keinen aktuellen Wert; Basisvektoren und Tangenten dagegen schon.
-    const ndcX = screenUV.x.mul(2.0).sub(1.0).toVar();
-    const ndcY = screenUV.y.mul(2.0).sub(1.0).toVar();
-    const ray = camBasis.forward
-      .add(camBasis.right.mul(ndcX.mul(camBasis.tanX)))
-      .add(camBasis.up.mul(ndcY.mul(camBasis.tanY)))
-      .toVar();
-    const viewZ = perspectiveDepthToViewZ(d, cameraNear, cameraFar).toVar();
-    const world = cameraPosition.add(ray.mul(abs(viewZ))).toVar();
-
-    const prev = prevViewProj.mul(vec4(world, 1.0)).toVar();
-    const pw = select(abs(prev.w).lessThan(1e-6), float(1e-6), prev.w).toVar();
-    const prevUV = prev.xy.div(pw).mul(0.5).add(0.5).toVar();
+    // Der Geschwindigkeitspuffer kommt aus dem Szenenpass (MRT) und traegt
+    // ndcAktuell - ndcVorher. Frueher wurde die Weltposition hier aus der
+    // Tiefe rekonstruiert und mit prevViewProj zurueckprojiziert - aber
+    // Matrix-Uniforms liefern im Postpfad keinen aktuellen Wert (der gleiche
+    // Grund, aus dem invViewProj hier durch Basisvektoren ersetzt wurde).
+    // Die Matrix blieb dadurch auf ihrem Startwert stehen, und das Bild war
+    // auch im Stillstand verwischt.
+    //
+    // Nebeneffekt des Wechsels: bewegte Objekte verwischen jetzt eigenstaendig,
+    // nicht nur die Kameraschwenks.
+    const vNdc = velocityTextureNode.sample(screenUV).xy.toVar();
+    const v0 = vNdc.mul(0.5).mul(strength).toVar();          // NDC -> UV
 
     const texel = vec2(1.0).div(screenSize).toVar();
-    const delta = screenUV.sub(prevUV).mul(strength).toVar();
-    const lenPx = length(delta.div(texel)).toVar();
+    const lenPx = length(v0.div(texel)).toVar();
     const scale = min(float(1.0), float(maxLengthPx).div(max(1e-3, lenPx))).toVar();
-    const v = delta.mul(scale).toVar();
+    const v = v0.mul(scale).toVar();
 
     const jitter = fract(sin(dot(screenUV.mul(screenSize), vec2(12.9898, 78.233)).add(time.mul(11.3))).mul(43758.5453)).toVar();
 
@@ -183,7 +174,7 @@ export function cameraMotionBlur(colorNode, depthTextureNode, {
     });
 
     const blurred = acc.div(max(1e-4, wsum)).toVar();
-    const k = saturate(lenPx.mul(0.22)).mul(select(isBackground, float(0.35), float(1.0))).toVar();
+    const k = saturate(lenPx.mul(0.22)).toVar();
     return vec4(mix(center, blurred, k), 1.0);
   })();
 }

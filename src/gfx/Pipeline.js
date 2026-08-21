@@ -64,7 +64,7 @@ export class Pipeline {
     this.dofFocus = uniform(9.0);
     this.dofRange = uniform(170.0);   // groesser = spaeter unscharf
     this.dofBokeh = uniform(0.38);
-    this.motionBlurAmount = uniform(0.26);  // 0.55 schmierte beim Rennen stark
+    this.motionBlurAmount = uniform(0.6);
     this.prevViewProj = uniform(new Matrix4());
     this.invViewProj = uniform(new Matrix4());
     this._vp = new Matrix4();
@@ -246,10 +246,8 @@ export class Pipeline {
 
     /* ---------------- Bewegungsunschärfe ---------------- */
     if (S.motionBlur) {
-      color = cameraMotionBlur(color, depthTex, {
+      color = cameraMotionBlur(color, velocityTex, {
         strength: this.motionBlurAmount,
-        prevViewProj: this.prevViewProj,
-        camBasis: this.camBasis,
         maxLengthPx: 18,
         samples: 10,
       });

@@ -94,8 +94,8 @@ export class Ocean {
     this.wakeStrength = uniform(0.0);               // 0 = aus
     this.wakeSpeed = uniform(0.0);                  // Tempo der Figur
     this.wakeTime = uniform(0.0);
-    this.wakeRadius = uniform(6.0);
-    this.wakeAmplitude = uniform(0.34);
+    this.wakeRadius = uniform(9.0);
+    this.wakeAmplitude = uniform(0.75);
 
     /* --- Farben und Optik --- */
     this.deepColor = uniform(new Color(0.0055, 0.0290, 0.0480));
@@ -312,7 +312,7 @@ export class Ocean {
     }
     this.wakePos.value.set(pos.x, pos.z);
     this.wakeSpeed.value = tempo;
-    const ziel = Math.min(1, tiefe / 0.9);
+    const ziel = Math.min(1, tiefe / 0.35);   // schon knoecheltief volle Wirkung
     this.wakeStrength.value += (ziel - this.wakeStrength.value) * 0.25;
   }
 
@@ -352,11 +352,14 @@ export class Ocean {
 
     const hoehe = ring.mul(this.wakeAmplitude).mul(huelle).mul(this.wakeStrength).toVar();
 
-    // Schaum direkt um die Figur, staerker wenn sie sich schnell bewegt
-    const nah = saturate(float(1.0).sub(d.div(this.wakeRadius.mul(0.45)))).toVar();
-    const schaum = nah.mul(nah).mul(this.wakeStrength)
-      .mul(saturate(this.wakeSpeed.mul(0.22)).add(0.25))
-      .mul(saturate(ring.mul(0.5).add(0.75))).toVar();
+    // Schaum auf den Wellenbergen des ganzen Rings: das liest sich deutlich
+    // besser als reine Verschiebung, die im Seegang untergeht. Dazu ein
+    // staerkerer Kern direkt um die Figur, der am Tempo haengt.
+    const kamm = saturate(ring.mul(1.6)).toVar();
+    const ringSchaum = kamm.mul(huelle).mul(0.55).toVar();
+    const kern = saturate(float(1.0).sub(d.div(this.wakeRadius.mul(0.30)))).toVar();
+    const kernSchaum = kern.mul(kern).mul(saturate(this.wakeSpeed.mul(0.30)).add(0.30)).toVar();
+    const schaum = max(ringSchaum, kernSchaum).mul(this.wakeStrength).toVar();
 
     return vec2(hoehe, saturate(schaum));
   }
