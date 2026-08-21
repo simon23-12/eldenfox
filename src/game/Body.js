@@ -147,7 +147,12 @@ export function buildBody(d) {
         { pos: [sx * 0.07, -0.01, 0], rot: [0, 0, sx * -95] }), cloth2, clothRough);
     }
 
+    // Gelenkkugeln im Drehpunkt: die Glieder sind starr an je einen Knochen
+    // gebunden, zwischen ihnen klafft beim Beugen eine Luecke. Eine Kugel im
+    // Drehpunkt bleibt beim Drehen an Ort und Stelle und schliesst sie.
+    push(`arm${side}`, place(new SphereGeometry(0.054 * bulk, 10, 8), { pos: [0, 0, 0] }), cloth, clothRough);
     push(`arm${side}`, place(limb(0.052 * bulk, 0.046 * bulk, 0.245), { pos: [sx * 0.245, 0, 0], rot: [0, 0, sx * 90] }), cloth, clothRough);
+    push(`forearm${side}`, place(new SphereGeometry(0.049 * bulk, 10, 8), { pos: [0, 0, 0] }), leather, leatherRough);
     push(`forearm${side}`, place(limb(0.048 * bulk, 0.040 * bulk, 0.225), { pos: [sx * 0.225, 0, 0], rot: [0, 0, sx * 90] }), leather, leatherRough);
     if (d.bracers !== false) {
       push(`forearm${side}`, place(new CylinderGeometry(0.056, 0.050, 0.13, 10),
@@ -158,7 +163,9 @@ export function buildBody(d) {
 
   /* ------------------------------ Beine ------------------------------ */
   for (const side of ['L', 'R']) {
+    push(`thigh${side}`, place(new SphereGeometry(0.084 * bulk, 10, 8), { pos: [0, 0, 0] }), cloth2, clothRough);
     push(`thigh${side}`, place(limb(0.082 * bulk, 0.070 * bulk, 0.40), { pos: [0, 0, 0] }), cloth2, clothRough);
+    push(`shin${side}`, place(new SphereGeometry(0.068 * bulk, 10, 8), { pos: [0, 0, 0] }), cloth2, clothRough);
     push(`shin${side}`, place(limb(0.066 * bulk, 0.050 * bulk, 0.39), { pos: [0, 0, 0] }), cloth2, clothRough);
     if (d.greaves !== false) {
       push(`shin${side}`, place(new CylinderGeometry(0.074, 0.058, 0.24, 10), { pos: [0, -0.10, 0.004] }), armor, armorRough, armorMetal);
