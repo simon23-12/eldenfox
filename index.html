@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>ELDEN FOX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/src/ui/ui.css" />
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <div id="boot" class="overlay">
+    <div class="boot-inner">
+      <h1 class="title">ELDEN&nbsp;FOX</h1>
+      <p class="subtitle">Die Füchse von Düsseldorf</p>
+      <div class="bar"><i id="bootbar"></i></div>
+      <p id="bootmsg" class="bootmsg">Erwecke die GPU…</p>
+      <p id="booterr" class="booterr"></p>
+    </div>
+  </div>
+
+  <div id="select" class="overlay hidden">
+    <div class="select-inner">
+      <h2 class="sel-title">Wähle deinen Fuchs</h2>
+      <div id="roster" class="roster"></div>
+      <div class="sel-detail">
+        <h3 id="selName">—</h3>
+        <p id="selClass" class="selClass">—</p>
+        <p id="selDesc" class="selDesc"></p>
+        <div id="selStats" class="stats"></div>
+        <div id="selMoves" class="moves"></div>
+      </div>
+      <button id="beginBtn" class="begin">In die Welt treten</button>
+    </div>
+  </div>
+
+  <div id="hud" class="hidden">
+    <div class="vitals">
+      <div class="vbar hp"><i id="hpFill"></i><b id="hpDelay"></b><span id="hpText"></span></div>
+      <div class="vbar fp"><i id="fpFill"></i></div>
+      <div class="vbar st"><i id="stFill"></i></div>
+    </div>
+    <div id="charTag" class="charTag"></div>
+    <div id="bossBar" class="bossBar hidden">
+      <span id="bossName"></span>
+      <div class="bbar"><i id="bossFill"></i><b id="bossDelay"></b></div>
+    </div>
+    <div id="itemSlot" class="itemSlot"><span id="flaskCount">5</span></div>
+    <div id="msg" class="msg"></div>
+    <div id="stats" class="perf"></div>
+  </div>
+
+  <div id="died" class="overlay hidden died"><h1>DU BIST GESTORBEN</h1></div>
+  <div id="won" class="overlay hidden won"><h1>SIEG</h1><p id="wonSub"></p></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
