@@ -20,6 +20,7 @@ import { makeFbm, Rng } from '../../core/Rng.js';
  */
 export async function buildLevel1(engine, world, { quality = 1.0 } = {}) {
   const { scene, renderer, atmosphere, sky } = engine;
+  const skip = engine.skip ?? new Set();
 
   /* ------------------------------ Abendsonne ------------------------------ */
   engine.setSun(8.5, 188);
@@ -37,29 +38,36 @@ export async function buildLevel1(engine, world, { quality = 1.0 } = {}) {
   world.terrain = terrain;
 
   /* ------------------------------ Meer ------------------------------ */
-  const ocean = new Ocean({ atmosphere, sky, quality });
-  await ocean.bake(renderer);
-  ocean.windDir.value.set(0.32, 0.95).normalize();
-  ocean.windSpeed.value = 10.5;
-  ocean.amplitude.value = 0.9;
-  scene.add(ocean.mesh);
-  world.ocean = ocean;
+  // Der Ozean fährt pro Bild eine FFT über mehrere Compute-Stufen.
+  let ocean = null;
+  if (!skip.has('ocean')) {
+    ocean = new Ocean({ atmosphere, sky, quality });
+    await ocean.bake(renderer);
+    ocean.windDir.value.set(0.32, 0.95).normalize();
+    ocean.windSpeed.value = 10.5;
+    ocean.amplitude.value = 0.9;
+    scene.add(ocean.mesh);
+    world.ocean = ocean;
+  }
   world.seaLevel = 0;
 
   /* ------------------------------ Gras ------------------------------ */
-  const grass = new Grass({
+  let grass = null;
+  if (!skip.has('grass')) grass = new Grass({
     terrain, sky, atmosphere,
     density: quality, radius: 105,
     gridSize: quality >= 0.9 ? 768 : quality >= 0.7 ? 544 : 384,
   });
-  grass.baseColor.value.setRGB(0.075, 0.130, 0.048);
-  grass.tipColor.value.setRGB(0.395, 0.470, 0.175);
-  grass.dryColor.value.setRGB(0.470, 0.410, 0.195);
-  grass.windStrength.value = 0.85;
-  grass.growLow.value = 2.2;
-  grass.growHigh.value = 5.5;
-  scene.add(grass.mesh);
-  world.grass = grass;
+  if (grass) {
+    grass.baseColor.value.setRGB(0.075, 0.130, 0.048);
+    grass.tipColor.value.setRGB(0.395, 0.470, 0.175);
+    grass.dryColor.value.setRGB(0.470, 0.410, 0.195);
+    grass.windStrength.value = 0.85;
+    grass.growLow.value = 2.2;
+    grass.growHigh.value = 5.5;
+    scene.add(grass.mesh);
+    world.grass = grass;
+  }
 
   /* ------------------------------ Wolken ------------------------------ */
   // Reihenfolge zählt: Wolken zuerst anmelden, dann Nebel. Der Nebel muss
@@ -85,7 +93,7 @@ export async function buildLevel1(engine, world, { quality = 1.0 } = {}) {
 
   /* ------------------------------ Volumetrik ------------------------------ */
   let fog = null;
-  if (engine.settings.volumetrics) {
+  if (engine.settings.volumetrics && grass) {
     fog = new VolumetricFog({
       atmosphere, sky,
       heightTexture: grass.heightTex,
@@ -156,8 +164,8 @@ export async function buildLevel1(engine, world, { quality = 1.0 } = {}) {
     fog,
     clouds,
     update(dt, eng) {
-      ocean.update(eng.renderer, dt, eng.camera);
-      grass.update(eng.renderer, eng.camera, world.player.position, dt);
+      ocean?.update(eng.renderer, dt, eng.camera);
+      grass?.update(eng.renderer, eng.camera, world.player.position, dt);
       fog?.update(eng.renderer, eng.camera);
     },
   };

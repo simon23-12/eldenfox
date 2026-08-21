@@ -10,10 +10,12 @@ import { Input } from './Input.js';
  * die Aktualisierungsschleife. Spielsysteme melden sich über `add()` an.
  */
 export class Engine {
-  constructor(canvas, { quality = 'ultra', reversedDepth = true, bypassPost = false } = {}) {
+  constructor(canvas, { quality = 'ultra', reversedDepth = true, bypassPost = false, skip = null } = {}) {
     this.reversedDepth = reversedDepth;
     /** Wenn gesetzt, wird die Postkette weder gebaut noch benutzt. */
     this.bypassPost = bypassPost;
+    /** Namen abgeschalteter Teilsysteme, siehe ?skip= in main.js. */
+    this.skip = skip instanceof Set ? skip : new Set(skip ?? []);
     this.canvas = canvas;
     this.qualityName = quality;
     this.settings = { ...QUALITY[quality] };
@@ -165,8 +167,10 @@ export class Engine {
     }
 
     this._syncSun();
-    this.atmosphere.update(this.renderer, this.camera);
-    this.sky.update(this.renderer);
+    // Beide fahren jedes Bild Compute-Kernel – unabhaengig von Aufloesung und
+    // Postkette. Zum Eingrenzen einzeln abschaltbar.
+    if (!this.skip.has('atmosphere')) this.atmosphere.update(this.renderer, this.camera);
+    if (!this.skip.has('sky')) this.sky.update(this.renderer);
 
     for (const s of this.systems) s.preRender?.(this.dt, this);
 

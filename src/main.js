@@ -71,12 +71,18 @@ async function boot() {
   //   ?depth=normal  umgekehrten Tiefenpuffer abschalten (neuer WebGPU-Pfad,
   //                  moeglicher Treiberverdaechtiger)
   const bypassPost = params.get('post') === 'off';
+  //   ?skip=ocean,grass,atmosphere,sky  laesst ganze Teilsysteme weg. Anders
+  //   als ?off= betrifft das nicht Postoptionen, sondern Dinge, die pro Bild
+  //   eigene Compute-Kernel fahren - unabhaengig von Aufloesung und Postkette.
+  const skip = new Set((params.get('skip') ?? '').split(',').map((k) => k.trim()).filter(Boolean));
   const engine = new Engine(canvas, {
     quality: qualityName,
     reversedDepth: params.get('depth') !== 'normal',
     bypassPost,
+    skip,
   });
   window.__engine = engine;
+  if (skip.size) console.info('Uebersprungen:', [...skip].join(', '));
 
   // ?off=clouds,ssr schaltet einzelne Effekte ab. Damit lässt sich ohne neuen
   // Build eingrenzen, welcher Teil eine Grafikkarte in die Knie zwingt.
