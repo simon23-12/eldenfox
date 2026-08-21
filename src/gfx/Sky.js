@@ -37,6 +37,11 @@ export class Sky {
     this._envFrame = 0;
     this.envUpdateInterval = 6;
 
+    // Sonnenstand, mit dem die Einstrahlung zuletzt berechnet wurde.
+    this._shSunDir = new Vector3();
+    this._shHeight = 0;
+    this._shDone = false;
+
     this._buildIrradianceSH();
   }
 
@@ -192,7 +197,25 @@ export class Sky {
   }
 
   update(renderer) {
-    renderer.compute(this.shKernel);
+    // Der SH-Kernel startet nur 9 Threads, und jeder arbeitet 24*48 Himmels-
+    // proben seriell ab. Als Dauerlast pro Bild ist das eine sehr lange,
+    // praktisch unparallele Aufgabe – die Form, an der der Treiber-Watchdog
+    // zuschlägt und das Gerät wegnimmt. Das Ergebnis haengt aber allein am
+    // Sonnenstand, und der steht innerhalb eines Abschnitts fest.
+    // Die Himmelsproben haengen ausserdem an der Kamerahoehe – in Abschnitt 2
+    // geht es ueber die Wolken. Schwelle sind rund 100 m (die Hoehe steckt in
+    // Einheiten von 1e6 m im Uniform).
+    const sun = this.atmo.sunDirection.value;
+    const height = this.atmo.cameraHeight.value;
+    const sonneBewegt = this._shSunDir.distanceToSquared(sun) > 1e-8;
+    const hoeheGeaendert = Math.abs(height - this._shHeight) > 1e-4;
+    if (!this._shDone || sonneBewegt || hoeheGeaendert) {
+      this._shSunDir.copy(sun);
+      this._shHeight = height;
+      this._shDone = true;
+      renderer.compute(this.shKernel);
+    }
+
     if (this._envFrame % this.envUpdateInterval === 0) {
       this.cubeCamera.update(renderer, this.envScene);
     }
