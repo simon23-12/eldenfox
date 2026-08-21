@@ -21,7 +21,11 @@ body { font-family: 'EB Garamond', Georgia, serif; color: var(--parch); -webkit-
 .hidden { display: none !important; }
 
 /* ---------- Startbildschirm ---------- */
-.boot-inner { text-align: center; max-width: 560px; padding: 2rem; }
+/* Breit genug für "ELDEN FOX" in voller Sperrung: der Titel wird per
+   background-clip aus einem Verlauf geschnitten, und der Verlauf endet an der
+   Elementkante. Was übersteht, bekommt keine Farbe und verschwindet – bei
+   560px blieb sichtbar nur "ELDEN F". */
+.boot-inner { text-align: center; max-width: min(92vw, 760px); padding: 2rem; }
 .title {
   font-family: 'Cinzel', serif; font-weight: 700; font-size: clamp(2.6rem, 8vw, 5.2rem);
   letter-spacing: .22em; margin: 0 0 2.4rem;

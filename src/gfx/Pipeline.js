@@ -35,7 +35,10 @@ export const QUALITY = {
     ao: true, aoDenoise: true, ssr: true, ssrStochastic: false, ssgi: false,
     traa: true, bloom: true, lensflare: false, dof: true, motionBlur: true,
     volumetrics: true, clouds: true, grain: true, ca: true, upscale: true,
-    renderScale: 0.85, shadowMapSize: 2048, cascades: 4, grassDensity: 0.75,
+    // Stand vorher auf 0.85 und lag damit *über* ultra – die Stufe, auf die
+    // große Bildschirme ausweichen sollen, war die teuerste von allen. 0.72
+    // ist der oben beschriebene FSR1-Arbeitspunkt.
+    renderScale: 0.72, shadowMapSize: 2048, cascades: 4, grassDensity: 0.75,
   },
   medium: {
     ao: true, aoDenoise: false, ssr: false, ssrStochastic: false, ssgi: false,

@@ -47,6 +47,13 @@ function guessQuality() {
   const stored = localStorage.getItem('eldenfox.quality');
   if (stored && QUALITY[stored]) return stored;
   const px = (innerWidth * innerHeight) * Math.min(devicePixelRatio || 1, 2) ** 2;
+  // Vorher gab es nur 'high' und 'ultra'. Auf sehr großen Flächen reichte das
+  // nicht: die Bilder wurden so teuer, dass der Treiber zurückgesetzt hat.
+  // Die Schwellen sind so gelegt, dass verbreitete Auflösungen bleiben, wo sie
+  // waren: 1920×1080 bei doppelter Pixeldichte sind 8.3e6 und damit weiter
+  // 'high'. Erst darüber – 4K, große Retina-Flächen – wird abgestuft.
+  if (px > 16e6) return 'low';
+  if (px > 10e6) return 'medium';
   return px > 4.2e6 ? 'high' : 'ultra';
 }
 
@@ -332,6 +339,8 @@ async function boot() {
     }
   });
 
+  watchDeviceLoss(engine, hud);
+
   progress(1, 'Bereit');
   document.getElementById('boot').classList.add('hidden');
   hud.show();
@@ -342,6 +351,44 @@ async function boot() {
     audio.unlock();
   });
   engine.start();
+}
+
+/**
+ * Ein verlorenes WebGPU-Gerät blieb bisher unsichtbar: die Schleife tickt
+ * weiter und meldet muntere Bildraten, aber jedes Bild geht ins Leere – auf
+ * dem Schirm bleibt es schwarz. Das ist der Zustand, den ein Treiberreset
+ * (etwa nach einem zu teuren Bild) hinterlässt.
+ *
+ * Statt schwarz zu bleiben: Schleife anhalten, sagen was los ist, und die
+ * nächste Sitzung eine Stufe niedriger starten lassen.
+ */
+function watchDeviceLoss(engine, hud) {
+  const device = engine.renderer?.backend?.device;
+  if (!device?.lost) return;
+
+  device.lost.then((info) => {
+    // `destroy()` löst dieselbe Promise aus – das ist kein Fehlerfall.
+    if (info.reason === 'destroyed') return;
+    console.error('WebGPU-Gerät verloren:', info.reason, info.message);
+    engine.stop();
+    hud.hide();
+
+    // Eine Stufe zurück, damit der nächste Start leichter ausfällt.
+    const order = ['low', 'medium', 'high', 'ultra'];
+    const lower = order[Math.max(0, order.indexOf(engine.qualityName) - 1)];
+    localStorage.setItem('eldenfox.quality', lower);
+
+    const boot = document.getElementById('boot');
+    boot.classList.remove('hidden');
+    bootbar.style.width = '100%';
+    bootmsg.textContent = 'Grafikgerät verloren';
+    booterr.textContent =
+      'Der Grafiktreiber hat die Verbindung abgebrochen – meist, weil ein Bild '
+      + 'zu lange gebraucht hat.\n\n'
+      + `Die Qualität steht jetzt auf "${lower}". Lade die Seite neu, um mit `
+      + 'dieser Stufe weiterzuspielen. Mit der Taste O lässt sie sich im Spiel '
+      + 'jederzeit umschalten.';
+  });
 }
 
 boot().catch((e) => {
