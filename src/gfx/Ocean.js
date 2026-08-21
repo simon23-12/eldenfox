@@ -477,6 +477,21 @@ export class Ocean {
       const jacobian = vec2(0.0).toVar();   // (Dxx, Dzz)
       const dxz = float(0.0).toVar();
 
+      // Normalen und Gischt viel frueher glaetten als die Verschiebung.
+      // Unter streifendem Blick deckt ein Pixel in der Ferne hunderte
+      // Wellenperioden ab; die Normale springt dann zufaellig und die
+      // Spiegelung zerfaellt in helle und dunkle Punkte - das koernige Band
+      // ueber dem Wasser. Die Auslenkung darf bleiben, sie traegt die
+      // Silhouette; nur die Schattierung muss ruhig werden.
+      // Die Schwelle waechst mit der Kamerahoehe: von oben ist der Blick
+      // steiler, ein Pixel deckt weniger Wellen ab, Details duerfen laenger
+      // bleiben. Flach ueber dem Wasser muss frueher geglaettet werden.
+      const camH = max(float(1.0), cameraPosition.y.sub(this.seaLevel)).toVar();
+      const skala = sqrt(camH).toVar();
+      const glatt = saturate(float(1.0).sub(
+        smoothstep(skala.mul(90.0), skala.mul(520.0), lodFade),
+      )).toVar();
+
       this.cascades.forEach((c, i) => {
         const uv = worldXZ.div(float(c.patch));
         // Feine Kaskaden in der Ferne ausblenden -> kein Aliasing am Horizont.
@@ -491,9 +506,9 @@ export class Ocean {
         const a = textureLevel(c.outA, uv, 0).toVar();
         const b = textureLevel(c.outB, uv, 0).toVar();
         disp.addAssign(vec3(a.x.mul(this.choppiness), a.z, a.y.mul(this.choppiness)).mul(fade));
-        slope.addAssign(vec2(b.x, b.y).mul(fade));
-        jacobian.addAssign(vec2(b.z, b.w).mul(fade));
-        dxz.addAssign(a.w.mul(fade));
+        slope.addAssign(vec2(b.x, b.y).mul(fade).mul(glatt));
+        jacobian.addAssign(vec2(b.z, b.w).mul(fade).mul(glatt));
+        dxz.addAssign(a.w.mul(fade).mul(glatt));
       });
 
       return { disp, slope, jacobian, dxz };

@@ -165,9 +165,13 @@ export function buildBody(d) {
     // gebunden, zwischen ihnen klafft beim Beugen eine Luecke. Eine Kugel im
     // Drehpunkt bleibt beim Drehen an Ort und Stelle und schliesst sie.
     push(`arm${side}`, place(new SphereGeometry(0.054 * bulk, 10, 8), { pos: [0, 0, 0] }), cloth, clothRough);
-    pushWeich(`arm${side}`, place(limb(0.052 * bulk, 0.046 * bulk, 0.245, 10, 5), { pos: [sx * 0.245, 0, 0], rot: [0, 0, sx * 90] }), cloth, clothRough, 0.085);
+    // place() dreht zuerst und verschiebt danach: die Drehung setzt das Glied
+    // bereits an den Knochenursprung. Die zusaetzliche Verschiebung um die
+    // volle Gliedlaenge schob Arm und Unterarm ein zweites Mal nach aussen -
+    // sie standen dadurch frei in der Luft, eine Armlaenge vom Gelenk entfernt.
+    pushWeich(`arm${side}`, place(limb(0.052 * bulk, 0.046 * bulk, 0.245, 10, 5), { rot: [0, 0, sx * 90] }), cloth, clothRough, 0.085);
     push(`forearm${side}`, place(new SphereGeometry(0.049 * bulk, 10, 8), { pos: [0, 0, 0] }), leather, leatherRough);
-    pushWeich(`forearm${side}`, place(limb(0.048 * bulk, 0.040 * bulk, 0.225, 10, 5), { pos: [sx * 0.225, 0, 0], rot: [0, 0, sx * 90] }), leather, leatherRough, 0.080);
+    pushWeich(`forearm${side}`, place(limb(0.048 * bulk, 0.040 * bulk, 0.225, 10, 5), { rot: [0, 0, sx * 90] }), leather, leatherRough, 0.080);
     if (d.bracers !== false) {
       push(`forearm${side}`, place(new CylinderGeometry(0.056, 0.050, 0.13, 10),
         { pos: [sx * 0.16, 0, 0], rot: [0, 0, sx * 90] }), armor, armorRough, armorMetal);
