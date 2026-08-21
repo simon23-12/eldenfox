@@ -29,7 +29,9 @@ export const QUALITY = {
     // Intern in 0.72 rendern und per FSR1 rekonstruieren: das ist auf
     // Retina-Displays deutlich schneller als native Auflösung und bei
     // aktivem TRAA kaum vom nativen Bild zu unterscheiden.
-    renderScale: 0.72, shadowMapSize: 2048, cascades: 4, grassDensity: 1.0,
+    // maxPixelScale deckelt `dpr * renderScale`. Für die oberen Stufen ist
+    // der Wert wirkungslos (2 * 0.72 = 1.44) und nur eine Notbremse.
+    renderScale: 0.72, maxPixelScale: 1.5, shadowMapSize: 2048, cascades: 4, grassDensity: 1.0,
   },
   high: {
     ao: true, aoDenoise: true, ssr: true, ssrStochastic: false, ssgi: false,
@@ -38,19 +40,20 @@ export const QUALITY = {
     // Stand vorher auf 0.85 und lag damit *über* ultra – die Stufe, auf die
     // große Bildschirme ausweichen sollen, war die teuerste von allen. 0.72
     // ist der oben beschriebene FSR1-Arbeitspunkt.
-    renderScale: 0.72, shadowMapSize: 2048, cascades: 4, grassDensity: 0.75,
+    renderScale: 0.72, maxPixelScale: 1.25, shadowMapSize: 2048, cascades: 4, grassDensity: 0.75,
   },
   medium: {
     ao: true, aoDenoise: false, ssr: false, ssrStochastic: false, ssgi: false,
     traa: true, bloom: true, lensflare: false, dof: false, motionBlur: true,
     volumetrics: true, clouds: true, grain: true, ca: false, upscale: true,
-    renderScale: 0.72, shadowMapSize: 1536, cascades: 3, grassDensity: 0.5,
+    // Ab hier greift der Deckel wirklich: nicht mehr als die native Auflösung.
+    renderScale: 0.72, maxPixelScale: 1.0, shadowMapSize: 1536, cascades: 3, grassDensity: 0.5,
   },
   low: {
     ao: false, aoDenoise: false, ssr: false, ssrStochastic: false, ssgi: false,
     traa: false, bloom: true, lensflare: false, dof: false, motionBlur: false,
     volumetrics: false, clouds: true, grain: false, ca: false, upscale: true,
-    renderScale: 0.6, shadowMapSize: 1024, cascades: 2, grassDensity: 0.28,
+    renderScale: 0.6, maxPixelScale: 0.75, shadowMapSize: 1024, cascades: 2, grassDensity: 0.28,
   },
 };
 

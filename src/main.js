@@ -65,6 +65,13 @@ async function boot() {
 
   await engine.init(progress);
 
+  // Software-Rasterizer: WebGPU meldet sich normal, aber gerechnet wird auf
+  // der CPU. Das Spiel ist dann unspielbar langsam und frisst Arbeitsspeicher,
+  // bis das Gerät wegbricht. Lieber einmal klar sagen, was los ist.
+  if (engine.gpuInfo.isSoftware) {
+    warnSoftwareRendering(engine.gpuInfo.adapterName);
+  }
+
   const hud = new Hud();
   const world = new World(engine);
   engine.world = world;
@@ -333,7 +340,7 @@ async function boot() {
       const next = order[(order.indexOf(engine.qualityName) + 1) % order.length];
       engine.qualityName = next;
       localStorage.setItem('eldenfox.quality', next);
-      engine.viewport.setScale(QUALITY[next].renderScale);
+      engine.viewport.setScale(QUALITY[next].renderScale, QUALITY[next].maxPixelScale ?? Infinity);
       engine.rebuild(QUALITY[next]);
       hud.message(`Grafik: ${next}`, 1.6);
     }
@@ -351,6 +358,27 @@ async function boot() {
     audio.unlock();
   });
   engine.start();
+}
+
+/**
+ * Weist auf einen Software-Rasterizer hin und schaltet auf die unterste Stufe.
+ *
+ * Das Spiel läuft danach weiter – abbrechen wäre bevormundend –, aber der
+ * Grund für ruckelnde Bilder und volllaufenden Arbeitsspeicher steht dann auf
+ * dem Schirm statt nur in der Konsole.
+ */
+function warnSoftwareRendering(name) {
+  console.warn('WebGPU läuft auf einem Software-Rasterizer:', name || '(unbekannt)');
+  localStorage.setItem('eldenfox.quality', 'low');
+  booterr.textContent =
+    'Achtung: WebGPU rechnet hier auf der CPU'
+    + (name ? ` (${name})` : '')
+    + ', nicht auf der Grafikkarte.\n\n'
+    + 'Das Spiel läuft dadurch sehr langsam und belegt viel Arbeitsspeicher. '
+    + 'Prüfe chrome://gpu – unter "Graphics Feature Status" sollte WebGPU auf '
+    + '"Hardware accelerated" stehen. Hilft oft: Hardwarebeschleunigung in den '
+    + 'Chrome-Einstellungen aktivieren, Grafiktreiber aktualisieren, oder Chrome '
+    + 'in den Windows-Grafikeinstellungen auf "Hohe Leistung" setzen.';
 }
 
 /**
@@ -378,6 +406,11 @@ function watchDeviceLoss(engine, hud) {
     const lower = order[Math.max(0, order.indexOf(engine.qualityName) - 1)];
     localStorage.setItem('eldenfox.quality', lower);
 
+    // Welche GPU es getroffen hat, gehört in die Meldung: bei zwei Grafik-
+    // karten im Rechner greift Chrome unter Windows gern zur integrierten,
+    // weil `powerPreference` dort ignoriert wird (crbug 369219127).
+    const gpu = engine.gpuInfo?.adapterName ?? '';
+
     const boot = document.getElementById('boot');
     boot.classList.remove('hidden');
     bootbar.style.width = '100%';
@@ -385,6 +418,9 @@ function watchDeviceLoss(engine, hud) {
     booterr.textContent =
       'Der Grafiktreiber hat die Verbindung abgebrochen – meist, weil ein Bild '
       + 'zu lange gebraucht hat.\n\n'
+      + (gpu ? `Grafikkarte: ${gpu}\n` : '')
+      + `Auflösung: ${engine.viewport.width}×${engine.viewport.height} `
+      + `(Stufe "${engine.qualityName}")\n\n`
       + `Die Qualität steht jetzt auf "${lower}". Lade die Seite neu, um mit `
       + 'dieser Stufe weiterzuspielen. Mit der Taste O lässt sie sich im Spiel '
       + 'jederzeit umschalten.';
