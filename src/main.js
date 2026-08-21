@@ -42,8 +42,14 @@ function nextPaint() {
   });
 }
 
+const params = new URLSearchParams(location.search);
+
 /** Grobe Voreinstellung anhand der Bildschirmfläche. */
 function guessQuality() {
+  // ?quality=low erzwingt eine Stufe. Nötig zum Eingrenzen und im Inkognito-
+  // Fenster, wo der gespeicherte Wert die Sitzung nicht überlebt.
+  const forced = params.get('quality');
+  if (forced && QUALITY[forced]) return forced;
   const stored = localStorage.getItem('eldenfox.quality');
   if (stored && QUALITY[stored]) return stored;
   const px = (innerWidth * innerHeight) * Math.min(devicePixelRatio || 1, 2) ** 2;
@@ -62,6 +68,15 @@ async function boot() {
   const qualityName = guessQuality();
   const engine = new Engine(canvas, { quality: qualityName });
   window.__engine = engine;
+
+  // ?off=clouds,ssr schaltet einzelne Effekte ab. Damit lässt sich ohne neuen
+  // Build eingrenzen, welcher Teil eine Grafikkarte in die Knie zwingt.
+  const abgeschaltet = (params.get('off') ?? '').split(',').map((k) => k.trim()).filter(Boolean);
+  for (const key of abgeschaltet) {
+    if (key in engine.settings) engine.settings[key] = false;
+    else console.warn(`Unbekannte Einstellung in ?off=: ${key}`);
+  }
+  if (abgeschaltet.length) console.info('Abgeschaltet:', abgeschaltet.join(', '));
 
   await engine.init(progress);
 
@@ -134,15 +149,13 @@ async function boot() {
   try {
     await engine.renderer.compileAsync(engine.scene, engine.camera);
 
-    // compileAsync erfasst nur die Szene, nicht den Postpfad. Dessen erstes
-    // Bild übersetzt der Treiber sonst mitten im ersten renderSync() – auf
-    // dieser Maschine über 38 Sekunden am Stück gemessen. So lange hält der
-    // Hauptfaden still, Chrome hält den Prozess für hängend und räumt den
-    // GPU-Prozess ab; danach ist das Gerät weg und die Welt bleibt schwarz.
-    // Einmal über den asynchronen Pfad rendern übersetzt dasselbe, ohne den
-    // Faden zu blockieren.
+    // compileAsync erfasst nur die Szene, nicht den Postpfad. Dessen Shader
+    // übersetzt der Treiber sonst im ersten Bild des laufenden Spiels. Hier
+    // passiert das noch hinter dem Ladebildschirm, wo eine Denkpause nicht
+    // stört. (renderAsync() waere der naheliegende Weg, ruft in three 0.185
+    // aber auch nur render() auf und warnt dabei.)
     engine.pipeline.updateFrameMatrices(engine.camera);
-    await engine.pipeline.render();
+    engine.pipeline.renderSync();
   } catch (err) {
     console.warn('Vorübersetzung übersprungen:', err);
   }
