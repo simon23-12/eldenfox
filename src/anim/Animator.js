@@ -48,12 +48,22 @@ export class Animator {
    * @param {object} clip
    * @param {object} [o] fade (Sekunden), speed, restart
    */
-  play(clip, { fade = 0.12, speed = 1, restart = false } = {}) {
+  /**
+   * @param {object} clip
+   * @param {object} [o]
+   * @param {boolean} [o.keepPhase] Schrittphase uebernehmen statt bei 0 zu
+   *   beginnen. Beim Wechsel Gehen -> Laufen -> Rennen sprangen die Beine
+   *   sonst jedes Mal an den Zyklusanfang, was sichtbar hakt.
+   */
+  play(clip, { fade = 0.12, speed = 1, restart = false, keepPhase = false } = {}) {
     if (this.current === clip && !restart) { this.speed = speed; return; }
+    const phase = (keepPhase && this.current && this.current.loop && clip.loop && this.current.dur > 0)
+      ? (this.time / this.current.dur) % 1
+      : 0;
     this.prev = this.current;
     this.prevTime = this.time;
     this.current = clip;
-    this.time = 0;
+    this.time = phase * clip.dur;
     this.speed = speed;
     this.fade = fade > 0 && this.prev ? 0 : 1;
     this.fadeDur = Math.max(1e-4, fade);

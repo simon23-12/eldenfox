@@ -198,10 +198,16 @@ export class Enemy extends Character {
     const planar = Math.hypot(this.velocity.x, this.velocity.z);
     if (planar < 0.3) { this.setState('idle', C.IDLE, { fade: 0.2 }); return; }
     const st = this.st;
+    const rennt = this._gait === C.SPRINT;
+    const laeuft = rennt || this._gait === C.RUN;
+    const sprintSchwelle = st.sprintSpeed * (rennt ? 0.70 : 0.86);
+    const runSchwelle = st.moveSpeed * (laeuft ? 0.44 : 0.60);
+
     let clip = C.WALK, rate = planar / (st.moveSpeed * 0.62);
-    if (planar > st.sprintSpeed * 0.8) { clip = C.SPRINT; rate = planar / st.sprintSpeed; }
-    else if (planar > st.moveSpeed * 0.55) { clip = C.RUN; rate = planar / st.moveSpeed; }
-    this.setState('move', clip, { fade: 0.2, speed: MathUtils.clamp(rate, 0.5, 1.7) });
+    if (planar > sprintSchwelle) { clip = C.SPRINT; rate = planar / st.sprintSpeed; }
+    else if (planar > runSchwelle) { clip = C.RUN; rate = planar / st.moveSpeed; }
+    this._gait = clip;
+    this.setState('move', clip, { fade: 0.2, keepPhase: true, speed: MathUtils.clamp(rate, 0.5, 1.7) });
   }
 }
 

@@ -144,15 +144,24 @@ export class Player extends Character {
       const forward = this.velocity.x * fwd.x + this.velocity.z * fwd.z;
       if (Math.abs(lateral) > Math.abs(forward) * 1.25) {
         const clip = lateral > 0 ? C.STRAFE_R : C.STRAFE_L;
-        this.setState('move', clip, { fade: 0.18, speed: Math.min(1.6, planar / 3.0) });
+        this.setState('move', clip, { fade: 0.18, keepPhase: true, speed: Math.min(1.6, planar / 3.0) });
         return;
       }
     }
 
     const st = this.st;
+    // Hysterese: hochschalten spaeter als runterschalten. Ohne das flattert
+    // der Clip im Grenzbereich zwischen Laufen und Rennen mehrmals pro
+    // Sekunde hin und her, was sichtbar hakt.
+    const rennt = this._gait === C.SPRINT;
+    const laeuft = rennt || this._gait === C.RUN;
+    const sprintSchwelle = st.sprintSpeed * (rennt ? 0.72 : 0.88);
+    const runSchwelle = st.moveSpeed * (laeuft ? 0.44 : 0.60);
+
     let clip = C.WALK, rate = planar / (st.moveSpeed * 0.62);
-    if (planar > st.sprintSpeed * 0.82) { clip = C.SPRINT; rate = planar / st.sprintSpeed; }
-    else if (planar > st.moveSpeed * 0.55) { clip = C.RUN; rate = planar / st.moveSpeed; }
-    this.setState('move', clip, { fade: 0.18, speed: MathUtils.clamp(rate, 0.55, 1.8) });
+    if (planar > sprintSchwelle) { clip = C.SPRINT; rate = planar / st.sprintSpeed; }
+    else if (planar > runSchwelle) { clip = C.RUN; rate = planar / st.moveSpeed; }
+    this._gait = clip;
+    this.setState('move', clip, { fade: 0.18, keepPhase: true, speed: MathUtils.clamp(rate, 0.55, 1.8) });
   }
 }
