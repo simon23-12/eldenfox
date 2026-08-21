@@ -9,6 +9,7 @@ import { Clouds } from '../../gfx/Clouds.js';
 import { VolumetricFog } from '../../gfx/VolumetricFog.js';
 import { Boss, BOSS_TYPES } from '../Boss.js';
 import { makeFbm, Rng } from '../../core/Rng.js';
+import { roughenSolid } from '../../gfx/Solids.js';
 
 const ISLAND_Y = 1900;      // Höhe der Insel über dem Wolkenmeer
 const ARENA_R = 30;
@@ -227,17 +228,13 @@ function buildArena(terrain, seed, quality) {
   out.push(pillars);
 
   /* --- Trümmer --- */
-  // Bewusst nur leicht verformen: bei starker Streckung entstehen aus dem
-  // Ikosaeder flache Scherben, die wie Papierschnipsel aussehen.
-  const rubbleGeo = new IcosahedronGeometry(0.5, 1);
-  {
-    const p = rubbleGeo.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const k = 0.88 + rng.next() * 0.24;
-      p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.82, p.getZ(i) * k);
-    }
-    rubbleGeo.computeVertexNormals();
-  }
+  // Die flachen Scherben kamen nicht von zu starker Streckung, sondern davon,
+  // dass jede Ecke des nicht indizierten Ikosaeders mehrfach im Puffer liegt
+  // und pro Kopie anders ausgelenkt wurde. roughenSolid haengt die Auslenkung
+  // an die Position - damit ist auch kraeftige Verformung wieder benutzbar.
+  const rubbleGeo = roughenSolid(new IcosahedronGeometry(0.5, 1), {
+    amount: 0.30, detail: 0.13, flatten: 0.80, seed: 3,
+  });
   const count = Math.round(240 * quality);
   const rubble = new InstancedMesh(rubbleGeo, stoneMat, count);
   rubble.castShadow = true; rubble.receiveShadow = true;

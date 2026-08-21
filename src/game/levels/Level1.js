@@ -10,6 +10,7 @@ import { VolumetricFog } from '../../gfx/VolumetricFog.js';
 import { Clouds } from '../../gfx/Clouds.js';
 import { ENEMY_TYPES } from '../Enemy.js';
 import { makeFbm, Rng } from '../../core/Rng.js';
+import { roughenSolid } from '../../gfx/Solids.js';
 
 /**
  * Level 1 – Küste im Abendlicht.
@@ -269,20 +270,20 @@ function scatterProps(terrain, seed, quality) {
   const rng = new Rng(seed);
   const meshes = [];
 
+  // Bewusst grob: die flachen Facetten der Grundkoerper machen den Felslook.
+  // Feiner unterteilt naehert sich alles einer Kugel und wird mit der
+  // Stauchung zur glatten Kuppe - ausprobiert, sah deutlich schlechter aus.
   const rockGeos = [
     new DodecahedronGeometry(1, 0),
     new IcosahedronGeometry(1, 0),
     new DodecahedronGeometry(1, 1),
   ];
-  // Unregelmäßig verformen, damit es keine Würfelwelt wird
-  for (const g of rockGeos) {
-    const p = g.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const s = 0.72 + rng.next() * 0.56;
-      p.setXYZ(i, p.getX(i) * s, p.getY(i) * s * 0.78, p.getZ(i) * s);
-    }
-    g.computeVertexNormals();
-  }
+  // Unregelmäßig verformen, damit es keine Würfelwelt wird. Die Auslenkung
+  // haengt an der Position, nicht am Vertexindex – sonst reisst der Koerper
+  // auf, siehe roughenSolid.
+  rockGeos.forEach((g, i) => roughenSolid(g, {
+    amount: 0.40, detail: 0.16, flatten: 0.74, seed: 7 + i * 13,
+  }));
 
   const rockMat = new MeshStandardNodeMaterial({
     color: new Color(0.20, 0.195, 0.185), roughness: 0.92, metalness: 0.0,
