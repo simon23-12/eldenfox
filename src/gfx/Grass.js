@@ -8,7 +8,7 @@ import {
   storage, texture, textureLevel, uniform, attribute, positionLocal, normalLocal, positionWorld,
   If, Loop, Break, atomicAdd, atomicStore, floor, fract, sin, cos, abs, max, min, clamp, saturate,
   mix, pow, sqrt, dot, cross, normalize, length, smoothstep, step, time, PI, PI2, select,
-  cameraPosition, mod, sign, exp,
+  cameraPosition, mod, sign, exp, mrt, cameraProjectionMatrix, cameraViewMatrix,
 } from 'three/tsl';
 
 /**
@@ -49,6 +49,12 @@ export class Grass {
 
     /* --- Uniforms --- */
     this.origin = uniform(new Vector2(0, 0));
+    /* Sicht-Projektions-Matrix des letzten Bildes. three berechnet die
+     * Geschwindigkeit aus `positionLocal` – bei prozedural platzierten Halmen
+     * ist das der Vorlagenvertex nahe dem Ursprung, nicht der Halm. Das ergab
+     * unsinnige Bewegungsvektoren, und seit Motion Blur den Puffer liest,
+     * verschmierte genau das Gras. */
+    this.prevViewProj = uniform(new Matrix4());
     this.windDir = uniform(new Vector2(0.8, 0.6));
     this.windStrength = uniform(1.0);
     this.gustPhase = uniform(0.0);
@@ -265,6 +271,36 @@ export class Grass {
       return base.add(local);
     })();
 
+    /* Eigene Geschwindigkeit: aus der *windfreien* Halmposition. Damit
+     * verwischt die Kamerabewegung wie sie soll, das Wippen im Wind aber
+     * nicht – das ist hochfrequent und soll scharf bleiben. Der Knoten wird
+     * in die MRT des Passes gemischt, alle anderen Kanaele bleiben. */
+    mat.mrtNode = mrt({
+      velocity: Fn(() => {
+        const base = vec3(inst.x, inst.y, inst.z).toVar();
+        const bladeH = inst.w.toVar();
+        const yaw = inst2.x.toVar();
+        const seg = vSeg.toVar();
+        const side = vSide.toVar();
+
+        const width = float(0.022).mul(float(1.0).sub(pow(seg, 1.25))).toVar();
+        const c = cos(yaw).toVar(), s2 = sin(yaw).toVar();
+        const local = vec3(c, 0.0, s2.negate()).mul(side.mul(width)).toVar();
+        local.y.addAssign(seg.mul(bladeH));
+        const bend = seg.mul(seg).mul(0.42).toVar();
+        local.addAssign(vec3(s2, 0.0, c).mul(bend.mul(bladeH)));
+
+        const welt = vec4(base.add(local), 1.0).toVar();
+        const jetzt = cameraProjectionMatrix.mul(cameraViewMatrix.mul(welt)).toVar();
+        const vorher = this.prevViewProj.mul(welt).toVar();
+        // wie in threes VelocityNode: einfache perspektivische Teilung.
+        // Vertices hinter der Kamera werden ohnehin weggeschnitten.
+        const ndcJetzt = jetzt.xy.div(jetzt.w).toVar();
+        const ndcVorher = vorher.xy.div(vorher.w).toVar();
+        return ndcJetzt.sub(ndcVorher);
+      })(),
+    });
+
     mat.normalNode = Fn(() => {
       const yaw = inst2.x.toVar();
       const c = cos(yaw).toVar(), s = sin(yaw).toVar();
@@ -321,6 +357,8 @@ export class Grass {
     // Sichtkegelebenen aus der Sicht-Projektions-Matrix (nur die Seiten,
     // nah und fern erledigt die Entfernungsprüfung)
     camera.updateMatrixWorld();
+    // Erst die Matrix des letzten Bildes sichern, dann neu berechnen.
+    this.prevViewProj.value.copy(_m);
     _m.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     const m = _m.elements;
     const planes = [
