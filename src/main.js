@@ -463,6 +463,8 @@ function watchDeviceLoss(engine, hud) {
 
 boot().catch((e) => {
   console.error(e);
-  booterr.textContent = `${e?.message ?? e}\n\n${(e?.stack ?? '').split('\n').slice(1, 4).join('\n')}`;
+  // Erwartete Fehler erklaeren sich selbst; ein Stacktrace waere nur Rauschen.
+  const stack = e?.expected ? '' : `\n\n${(e?.stack ?? '').split('\n').slice(1, 4).join('\n')}`;
+  booterr.textContent = `${e?.message ?? e}${stack}`;
   bootmsg.textContent = 'Start fehlgeschlagen';
 });

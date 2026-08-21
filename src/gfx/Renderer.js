@@ -5,6 +5,14 @@ import { WebGPURenderer, NeutralToneMapping, AgXToneMapping, ACESFilmicToneMappi
  * Der ganze Rest der Grafik läuft in HDR (Half-Float) bis zum Post-Stack.
  */
 export async function createRenderer(canvas, opts = {}) {
+  // Erst nachfragen, dann bauen. Ohne WebGPU faellt der WebGPURenderer still
+  // auf WebGL zurueck und stirbt dort tief in three mit einem nichtssagenden
+  // "Cannot read properties of null (reading 'getSupportedExtensions')".
+  // Haeufigster Grund: Chrome hat die Hardwarebeschleunigung abgeschaltet,
+  // weil der GPU-Prozess mehrfach abgestuerzt ist. Dagegen hilft nur ein
+  // vollstaendiger Neustart des Browsers.
+  if (!opts.forceWebGL) await requireWebGPU();
+
   const renderer = new WebGPURenderer({
     canvas,
     antialias: false,             // wir machen TRAA im Post-Stack
@@ -44,6 +52,40 @@ export async function createRenderer(canvas, opts = {}) {
   };
 
   return { renderer, info };
+}
+
+/**
+ * Stellt sicher, dass WebGPU wirklich benutzbar ist – mit einer Fehlermeldung,
+ * aus der hervorgeht, was zu tun ist.
+ */
+async function requireWebGPU() {
+  // Als erwartet markierte Fehler zeigt der Startbildschirm ohne Stacktrace.
+  const fail = (msg) => { const e = new Error(msg); e.expected = true; throw e; };
+  if (!navigator.gpu) {
+    fail(
+      'Dieser Browser bietet kein WebGPU an.\n\n'
+      + 'Nötig ist Chrome/Edge 113+, Safari 18+ oder Firefox mit aktiviertem '
+      + 'dom.webgpu.enabled. Prüfe chrome://gpu – dort sollte WebGPU auf '
+      + '"Hardware accelerated" stehen.',
+    );
+  }
+
+  let adapter = null;
+  try {
+    adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+  } catch (err) {
+    throw new Error(`WebGPU liefert keinen Adapter: ${err?.message ?? err}`);
+  }
+
+  if (!adapter) {
+    fail(
+      'WebGPU ist vorhanden, liefert aber keine Grafikkarte.\n\n'
+      + 'Das passiert vor allem, wenn Chrome die Hardwarebeschleunigung nach '
+      + 'mehreren Abstürzen des GPU-Prozesses abgeschaltet hat. Beende Chrome '
+      + 'vollständig – alle Fenster, auch Inkognito – und starte es neu. '
+      + 'Danach zeigt chrome://gpu wieder "WebGPU: Hardware accelerated".',
+    );
+  }
 }
 
 /** Lesbarer Name des Adapters, so weit Chrome ihn preisgibt. */
