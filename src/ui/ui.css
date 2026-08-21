@@ -24,12 +24,11 @@ body { font-family: 'EB Garamond', Georgia, serif; color: var(--parch); -webkit-
 .boot-inner { text-align: center; max-width: 560px; padding: 2rem; }
 .title {
   font-family: 'Cinzel', serif; font-weight: 700; font-size: clamp(2.6rem, 8vw, 5.2rem);
-  letter-spacing: .22em; margin: 0 0 .3rem;
+  letter-spacing: .22em; margin: 0 0 2.4rem;
   background: linear-gradient(180deg, #f3e2b0 0%, var(--gold) 45%, #6b5520 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
   text-shadow: 0 0 60px rgba(200,164,74,.25);
 }
-.subtitle { font-style: italic; opacity: .55; letter-spacing: .18em; margin: 0 0 2.4rem; font-size: .95rem; }
 .bar { width: 320px; height: 2px; margin: 0 auto 1rem; background: #241d13; overflow: hidden; }
 .bar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); transition: width .35s ease; }
 .bootmsg { font-size: .82rem; letter-spacing: .16em; text-transform: uppercase; opacity: .45; margin: 0; }
