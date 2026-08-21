@@ -133,8 +133,18 @@ async function boot() {
   await nextPaint();
   try {
     await engine.renderer.compileAsync(engine.scene, engine.camera);
+
+    // compileAsync erfasst nur die Szene, nicht den Postpfad. Dessen erstes
+    // Bild übersetzt der Treiber sonst mitten im ersten renderSync() – auf
+    // dieser Maschine über 38 Sekunden am Stück gemessen. So lange hält der
+    // Hauptfaden still, Chrome hält den Prozess für hängend und räumt den
+    // GPU-Prozess ab; danach ist das Gerät weg und die Welt bleibt schwarz.
+    // Einmal über den asynchronen Pfad rendern übersetzt dasselbe, ohne den
+    // Faden zu blockieren.
+    engine.pipeline.updateFrameMatrices(engine.camera);
+    await engine.pipeline.render();
   } catch (err) {
-    console.warn('compileAsync übersprungen:', err);
+    console.warn('Vorübersetzung übersprungen:', err);
   }
 
   /* ------------------------------------------------------------------ Ablauf */
