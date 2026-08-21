@@ -52,15 +52,11 @@ function guessQuality() {
   if (forced && QUALITY[forced]) return forced;
   const stored = localStorage.getItem('eldenfox.quality');
   if (stored && QUALITY[stored]) return stored;
+  // Nur noch zwei Stufen. Die frueheren 'medium' und 'low' waren Notbremsen
+  // gegen eine vermutete Ueberlastung; die echte Ursache war ein haengender
+  // Compute-Kernel im Himmel, und der ist behoben.
   const px = (innerWidth * innerHeight) * Math.min(devicePixelRatio || 1, 2) ** 2;
-  // Vorher gab es nur 'high' und 'ultra'. Auf sehr großen Flächen reichte das
-  // nicht: die Bilder wurden so teuer, dass der Treiber zurückgesetzt hat.
-  // Die Schwellen sind so gelegt, dass verbreitete Auflösungen bleiben, wo sie
-  // waren: 1920×1080 bei doppelter Pixeldichte sind 8.3e6 und damit weiter
-  // 'high'. Erst darüber – 4K, große Retina-Flächen – wird abgestuft.
-  if (px > 16e6) return 'low';
-  if (px > 10e6) return 'medium';
-  return px > 4.2e6 ? 'high' : 'ultra';
+  return px > 8e6 ? 'high' : 'ultra';
 }
 
 async function boot() {
@@ -116,7 +112,7 @@ async function boot() {
   audio.menuStop(2.2);              // blendet über in die Kulisse
   audio.unlock();
 
-  const qScale = { ultra: 1.0, high: 0.85, medium: 0.65, low: 0.45 }[qualityName] ?? 1;
+  const qScale = { ultra: 1.0, high: 0.85 }[qualityName] ?? 1;
 
   // ?level=2 springt direkt in die Bossarena – zum Abstimmen des zweiten
   // Abschnitts, ohne jedes Mal die Küste durchspielen zu müssen.
@@ -376,11 +372,11 @@ async function boot() {
       hud.message(engine.paused ? 'Pause' : '', 1.2);
     }
     if (e.code === 'KeyO') {
-      const order = ['low', 'medium', 'high', 'ultra'];
+      const order = ['high', 'ultra'];
       const next = order[(order.indexOf(engine.qualityName) + 1) % order.length];
       engine.qualityName = next;
       localStorage.setItem('eldenfox.quality', next);
-      engine.viewport.setScale(QUALITY[next].renderScale, QUALITY[next].maxPixelScale ?? Infinity);
+      engine.viewport.setScale(QUALITY[next].renderScale);
       engine.rebuild(QUALITY[next]);
       hud.message(`Grafik: ${next}`, 1.6);
     }
@@ -409,7 +405,7 @@ async function boot() {
  */
 function warnSoftwareRendering(name) {
   console.warn('WebGPU läuft auf einem Software-Rasterizer:', name || '(unbekannt)');
-  localStorage.setItem('eldenfox.quality', 'low');
+  localStorage.setItem('eldenfox.quality', 'high');
   booterr.textContent =
     'Achtung: WebGPU rechnet hier auf der CPU'
     + (name ? ` (${name})` : '')
@@ -442,7 +438,7 @@ function watchDeviceLoss(engine, hud) {
     hud.hide();
 
     // Eine Stufe zurück, damit der nächste Start leichter ausfällt.
-    const order = ['low', 'medium', 'high', 'ultra'];
+    const order = ['high', 'ultra'];
     const lower = order[Math.max(0, order.indexOf(engine.qualityName) - 1)];
     localStorage.setItem('eldenfox.quality', lower);
 

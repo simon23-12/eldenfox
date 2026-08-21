@@ -26,34 +26,17 @@ export const QUALITY = {
     ao: true, aoDenoise: true, ssr: true, ssrStochastic: false, ssgi: false,
     traa: true, bloom: true, lensflare: false, dof: true, motionBlur: true,
     volumetrics: true, clouds: true, grain: true, ca: true, upscale: true,
-    // Intern in 0.72 rendern und per FSR1 rekonstruieren: das ist auf
-    // Retina-Displays deutlich schneller als native Auflösung und bei
-    // aktivem TRAA kaum vom nativen Bild zu unterscheiden.
-    // maxPixelScale deckelt `dpr * renderScale`. Für die oberen Stufen ist
-    // der Wert wirkungslos (2 * 0.72 = 1.44) und nur eine Notbremse.
-    renderScale: 0.72, maxPixelScale: 1.5, shadowMapSize: 2048, cascades: 4, grassDensity: 1.0,
+    // Intern etwas unter der Anzeigeauflösung rendern und per FSR1
+    // rekonstruieren. Frueher stand hier 0.72; das war spuerbar weich, und
+    // die Ersparnis brauchen wir nicht mehr, seit der haengende Himmels-
+    // Kernel weg ist.
+    renderScale: 0.9, shadowMapSize: 2048, cascades: 4, grassDensity: 1.0,
   },
   high: {
     ao: true, aoDenoise: true, ssr: true, ssrStochastic: false, ssgi: false,
     traa: true, bloom: true, lensflare: false, dof: true, motionBlur: true,
     volumetrics: true, clouds: true, grain: true, ca: true, upscale: true,
-    // Stand vorher auf 0.85 und lag damit *über* ultra – die Stufe, auf die
-    // große Bildschirme ausweichen sollen, war die teuerste von allen. 0.72
-    // ist der oben beschriebene FSR1-Arbeitspunkt.
-    renderScale: 0.72, maxPixelScale: 1.25, shadowMapSize: 2048, cascades: 4, grassDensity: 0.75,
-  },
-  medium: {
-    ao: true, aoDenoise: false, ssr: false, ssrStochastic: false, ssgi: false,
-    traa: true, bloom: true, lensflare: false, dof: false, motionBlur: true,
-    volumetrics: true, clouds: true, grain: true, ca: false, upscale: true,
-    // Ab hier greift der Deckel wirklich: nicht mehr als die native Auflösung.
-    renderScale: 0.72, maxPixelScale: 1.0, shadowMapSize: 1536, cascades: 3, grassDensity: 0.5,
-  },
-  low: {
-    ao: false, aoDenoise: false, ssr: false, ssrStochastic: false, ssgi: false,
-    traa: false, bloom: true, lensflare: false, dof: false, motionBlur: false,
-    volumetrics: false, clouds: true, grain: false, ca: false, upscale: true,
-    renderScale: 0.6, maxPixelScale: 0.75, shadowMapSize: 1024, cascades: 2, grassDensity: 0.28,
+    renderScale: 0.78, shadowMapSize: 2048, cascades: 4, grassDensity: 0.75,
   },
 };
 
@@ -79,9 +62,9 @@ export class Pipeline {
     this.saturationAmount = uniform(1.06);
     this.contrastAmount = uniform(1.04);
     this.dofFocus = uniform(9.0);
-    this.dofRange = uniform(90.0);
+    this.dofRange = uniform(170.0);   // groesser = spaeter unscharf
     this.dofBokeh = uniform(0.38);
-    this.motionBlurAmount = uniform(0.55);
+    this.motionBlurAmount = uniform(0.26);  // 0.55 schmierte beim Rennen stark
     this.prevViewProj = uniform(new Matrix4());
     this.invViewProj = uniform(new Matrix4());
     this._vp = new Matrix4();

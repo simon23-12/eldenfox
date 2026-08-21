@@ -335,7 +335,12 @@ export class Character {
 
     const rootDelta = this.anim.update(dt);
     if (rootDelta.lengthSq() > 0) {
-      _v.copy(rootDelta).applyAxisAngle(_v2.set(0, 1, 0), this.facing);
+      // Die Clips sind mit "-Z ist vorne" gebaut (Kamerakonvention), die Figur
+      // rechnet aber mit forward = (sin facing, 0, cos facing), also +Z. Ohne
+      // die halbe Drehung rollt die Rolle rueckwaerts, der Backstep nach vorn,
+      // und Treffer schieben in den Angreifer statt von ihm weg.
+      _v.set(-rootDelta.x, rootDelta.y, -rootDelta.z)
+        .applyAxisAngle(_v2.set(0, 1, 0), this.facing);
       this.position.add(_v);
     }
 

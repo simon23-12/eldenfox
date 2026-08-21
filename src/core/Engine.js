@@ -47,10 +47,7 @@ export class Engine {
     this.camera = new PerspectiveCamera(58, 16 / 9, 0.15, 12000);
     this.camera.position.set(0, 3, 8);
 
-    this.viewport = new Viewport(renderer, this.canvas, {
-      renderScale: this.settings.renderScale,
-      maxPixelScale: this.settings.maxPixelScale ?? Infinity,
-    });
+    this.viewport = new Viewport(renderer, this.canvas, { renderScale: this.settings.renderScale });
     this.viewport.onResize.push((w, h) => {
       this.camera.aspect = this.canvas.clientWidth / this.canvas.clientHeight;
       this.camera.updateProjectionMatrix();
