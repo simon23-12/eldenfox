@@ -10,8 +10,10 @@ import { Input } from './Input.js';
  * die Aktualisierungsschleife. Spielsysteme melden sich über `add()` an.
  */
 export class Engine {
-  constructor(canvas, { quality = 'ultra', reversedDepth = true } = {}) {
+  constructor(canvas, { quality = 'ultra', reversedDepth = true, bypassPost = false } = {}) {
     this.reversedDepth = reversedDepth;
+    /** Wenn gesetzt, wird die Postkette weder gebaut noch benutzt. */
+    this.bypassPost = bypassPost;
     this.canvas = canvas;
     this.qualityName = quality;
     this.settings = { ...QUALITY[quality] };
@@ -168,8 +170,14 @@ export class Engine {
 
     for (const s of this.systems) s.preRender?.(this.dt, this);
 
-    this.pipeline.updateFrameMatrices(this.camera);
-    this.pipeline.renderSync();
+    if (this.bypassPost) {
+      // Diagnosepfad: Szene direkt zeichnen, ohne Postkette. Trennt die Frage
+      // "stirbt die Karte am Post-Stack" von "stirbt sie an der Szene".
+      this.renderer.render(this.scene, this.camera);
+    } else {
+      this.pipeline.updateFrameMatrices(this.camera);
+      this.pipeline.renderSync();
+    }
 
     this.input.end();
 

@@ -66,7 +66,16 @@ function guessQuality() {
 async function boot() {
   const canvas = document.getElementById('stage');
   const qualityName = guessQuality();
-  const engine = new Engine(canvas, { quality: qualityName });
+  // Diagnoseschalter:
+  //   ?post=off    Postkette weder bauen noch benutzen (Szene direkt zeichnen)
+  //   ?depth=normal  umgekehrten Tiefenpuffer abschalten (neuer WebGPU-Pfad,
+  //                  moeglicher Treiberverdaechtiger)
+  const bypassPost = params.get('post') === 'off';
+  const engine = new Engine(canvas, {
+    quality: qualityName,
+    reversedDepth: params.get('depth') !== 'normal',
+    bypassPost,
+  });
   window.__engine = engine;
 
   // ?off=clouds,ssr schaltet einzelne Effekte ab. Damit lässt sich ohne neuen
@@ -139,7 +148,7 @@ async function boot() {
 
   progress(0.92, 'Renderpfad übersetzen…');
   await nextPaint();
-  engine.buildPipeline();
+  if (!bypassPost) engine.buildPipeline();
 
   // Die Shader des ersten Bildes übersetzt der Treiber sonst mitten im ersten
   // renderSync() – auf langsameren GPUs steht der Faden dabei sehr lange still.
@@ -154,8 +163,10 @@ async function boot() {
     // passiert das noch hinter dem Ladebildschirm, wo eine Denkpause nicht
     // stört. (renderAsync() waere der naheliegende Weg, ruft in three 0.185
     // aber auch nur render() auf und warnt dabei.)
-    engine.pipeline.updateFrameMatrices(engine.camera);
-    engine.pipeline.renderSync();
+    if (!bypassPost) {
+      engine.pipeline.updateFrameMatrices(engine.camera);
+      engine.pipeline.renderSync();
+    }
   } catch (err) {
     console.warn('Vorübersetzung übersprungen:', err);
   }
