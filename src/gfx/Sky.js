@@ -112,24 +112,31 @@ export class Sky {
    * für eigene Shader (Gras, Wasser, Partikel).
    */
   _buildIrradianceSH() {
-    const SAMPLES_THETA = 24, SAMPLES_PHI = 48;
+    // Flache Schleife statt Loop(a, b, ...): die verschachtelte Zwei-Zaehler-Form
+    // erzeugte einen Kernel, der die Grafikkarte haengen liess – ein einziger
+    // Aufruf reichte, um das Geraet zu verlieren, obwohl die eigentliche Arbeit
+    // (rund 10000 LUT-Zugriffe) Mikrosekunden dauern muesste.
+    const SAMPLES_THETA = 16, SAMPLES_PHI = 32;
+    const SAMPLES_TOTAL = SAMPLES_THETA * SAMPLES_PHI;
     this.shBuffer = instancedArray(9, 'vec3').setName('skySH');
 
     this.shKernel = Fn(() => {
       const c = instanceIndex.toVar();
       const acc = vec3(0.0).toVar();
-      const wSum = float(0.0).toVar();
 
-      Loop(SAMPLES_THETA, SAMPLES_PHI, ({ i, j }) => {
-        const thetaN = float(i).add(0.5).div(float(SAMPLES_THETA)).toVar();
-        const phiN = float(j).add(0.5).div(float(SAMPLES_PHI)).toVar();
+      Loop(SAMPLES_TOTAL, ({ i }) => {
+        const n = float(i).toVar();
+        const ti = floor(n.div(float(SAMPLES_PHI))).toVar();
+        const pj = n.sub(ti.mul(float(SAMPLES_PHI))).toVar();
+        const thetaN = ti.add(0.5).div(float(SAMPLES_THETA)).toVar();
+        const phiN = pj.add(0.5).div(float(SAMPLES_PHI)).toVar();
         const ct = float(1.0).sub(thetaN.mul(2.0)).toVar();      // cos(theta) in [1,-1]
         const st = sqrt(saturate(float(1.0).sub(ct.mul(ct)))).toVar();
         const phi = phiN.mul(PI2).toVar();
         const d = vec3(st.mul(cos(phi)), ct, st.mul(sin(phi))).toVar();
 
         const L = this.atmo.sampleSky(d).toVar();
-        const solid = float(4.0).mul(PI).div(float(SAMPLES_THETA * SAMPLES_PHI)).toVar();
+        const solid = float(4.0).mul(PI).div(float(SAMPLES_TOTAL)).toVar();
 
         // Basisfunktionen
         const Y = float(0.0).toVar();
@@ -145,7 +152,6 @@ export class Sky {
         Y.assign(select(idx.equal(int(8)), float(0.546274).mul(d.x.mul(d.x).sub(d.y.mul(d.y))), Y));
 
         acc.addAssign(L.mul(Y).mul(solid));
-        wSum.addAssign(solid);
       });
 
       this.shBuffer.element(instanceIndex).assign(acc);
