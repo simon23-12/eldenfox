@@ -86,6 +86,17 @@ export class Ocean {
     this.origin = uniform(new Vector2(0, 0));
     this.seaLevel = uniform(0.0);
 
+    /* --- Wechselwirkung mit der Spielfigur ---
+     * Ringwellen und Schaum um eine bewegte Quelle. Bewusst analytisch statt
+     * als Ping-Pong-Simulation: das kostet nichts, laeuft ohne zusaetzliche
+     * Texturen und reicht fuer eine einzelne Figur voellig aus. */
+    this.wakePos = uniform(new Vector2(0, 0));      // Weltkoordinaten x/z
+    this.wakeStrength = uniform(0.0);               // 0 = aus
+    this.wakeSpeed = uniform(0.0);                  // Tempo der Figur
+    this.wakeTime = uniform(0.0);
+    this.wakeRadius = uniform(6.0);
+    this.wakeAmplitude = uniform(0.34);
+
     /* --- Farben und Optik --- */
     this.deepColor = uniform(new Color(0.0055, 0.0290, 0.0480));
     this.shallowColor = uniform(new Color(0.0350, 0.1450, 0.1600));
@@ -287,8 +298,27 @@ export class Ocean {
     for (const c of this.cascades) renderer.compute(c.h0Kernel);
   }
 
+  /**
+   * Meldet die Figur ans Wasser.
+   * @param {{x:number,z:number}|null} pos Weltposition, null = niemand im Wasser
+   * @param {number} tiefe Eintauchtiefe in Metern
+   * @param {number} tempo Horizontales Tempo in m/s
+   */
+  setWakeSource(pos, tiefe = 0, tempo = 0) {
+    if (!pos || tiefe <= 0) {
+      // sanft ausklingen statt hart abschalten
+      this.wakeStrength.value = Math.max(0, this.wakeStrength.value - 0.06);
+      return;
+    }
+    this.wakePos.value.set(pos.x, pos.z);
+    this.wakeSpeed.value = tempo;
+    const ziel = Math.min(1, tiefe / 0.9);
+    this.wakeStrength.value += (ziel - this.wakeStrength.value) * 0.25;
+  }
+
   update(renderer, dt, camera) {
     this.oceanTime.value += dt * this.timeScale.value;
+    this.wakeTime.value += dt;
 
     for (const c of this.cascades) {
       renderer.compute(c.evolveKernel);
@@ -303,6 +333,32 @@ export class Ocean {
     const oz = Math.round(camera.position.z / snap) * snap;
     this.origin.value.set(ox, oz);
     this.mesh.position.set(ox, this.seaLevel.value, oz);
+  }
+
+  /**
+   * Ringwellen um die Figur. Rueckgabe: x = Hoehe, y = Schaumanteil.
+   *
+   * Die Ringe laufen nach aussen (Phase minus Zeit), klingen mit dem Abstand
+   * ab und werden am Rand des Wirkradius weich ausgeblendet, damit keine
+   * harte Kante entsteht.
+   */
+  wakeAt(worldXZ) {
+    const d = length(worldXZ.sub(this.wakePos)).toVar();
+    const rand = saturate(float(1.0).sub(d.div(this.wakeRadius))).toVar();
+    const huelle = rand.mul(rand).toVar();                    // weicher Rand
+
+    const phase = d.mul(2.6).sub(this.wakeTime.mul(7.0)).toVar();
+    const ring = sin(phase).mul(exp(d.mul(-0.45))).toVar();
+
+    const hoehe = ring.mul(this.wakeAmplitude).mul(huelle).mul(this.wakeStrength).toVar();
+
+    // Schaum direkt um die Figur, staerker wenn sie sich schnell bewegt
+    const nah = saturate(float(1.0).sub(d.div(this.wakeRadius.mul(0.45)))).toVar();
+    const schaum = nah.mul(nah).mul(this.wakeStrength)
+      .mul(saturate(this.wakeSpeed.mul(0.22)).add(0.25))
+      .mul(saturate(ring.mul(0.5).add(0.75))).toVar();
+
+    return vec2(hoehe, saturate(schaum));
   }
 
   /* ---------------------------------------------------------------- Abtaster */
@@ -450,9 +506,11 @@ export class Ocean {
       // Absenkung = r^2 / (2 * Erdradius).
       const drop = r.mul(r).div(2.0 * 6371000.0).toVar();
 
+      const wake = this.wakeAt(worldXZ).x.toVar();
+
       return vec3(
         local.x.add(disp.x.mul(horizonFade)),
-        disp.y.mul(horizonFade).sub(drop),
+        disp.y.mul(horizonFade).add(wake.mul(horizonFade)).sub(drop),
         local.z.add(disp.z.mul(horizonFade)),
       );
     })();
@@ -494,7 +552,9 @@ export class Ocean {
       const n1 = fract(sin(dot(worldXZFrag.mul(1.7), vec2(12.9898, 78.233))).mul(43758.5453)).toVar();
       const n2 = fract(sin(dot(worldXZFrag.mul(0.41), vec2(39.3468, 11.135))).mul(24634.6345)).toVar();
       const grain = mix(n1, n2, 0.5).mul(0.5).add(0.68).toVar();
-      return saturate(folded.mul(grain).mul(this.foamStrength));
+      const eigen = saturate(folded.mul(grain).mul(this.foamStrength)).toVar();
+      const durchFigur = this.wakeAt(worldXZFrag).y.toVar();
+      return saturate(max(eigen, durchFigur));
     })();
 
     /* ------------------------------ Optik ------------------------------

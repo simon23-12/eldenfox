@@ -164,6 +164,13 @@ export async function buildLevel1(engine, world, { quality = 1.0 } = {}) {
     fog,
     clouds,
     update(dt, eng) {
+      // Figur ans Wasser melden, bevor es sich aktualisiert
+      const sp = world.player;
+      if (ocean && sp) {
+        const tiefe = world.seaLevel - sp.position.y;
+        const tempo = Math.hypot(sp.velocity.x, sp.velocity.z);
+        ocean.setWakeSource(tiefe > 0 ? sp.position : null, tiefe, tempo);
+      }
       ocean?.update(eng.renderer, dt, eng.camera);
       grass?.update(eng.renderer, eng.camera, world.player.position, dt);
       fog?.update(eng.renderer, eng.camera);
