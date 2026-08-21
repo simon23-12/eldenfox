@@ -10,6 +10,10 @@ import { WEAPONS, WEAPON_STATS, bladeAxisFor } from './Weapons.js';
 import { derivedStats } from './Roster.js';
 
 const BONE_ORDER = Object.keys(BONES);
+/** name -> Elternname, fuer die weichen Gelenke im Skinning. */
+const BONE_PARENTS = Object.fromEntries(
+  Object.entries(BONES).map(([n, [parent]]) => [n, parent]),
+);
 
 const _v = new Vector3(), _v2 = new Vector3(), _v3 = new Vector3();
 const _q = new Quaternion();
@@ -65,7 +69,7 @@ export class Character {
     this.weapon = weapon;
 
     const parts = [...buildBody(def.body ?? {}), ...weapon.parts];
-    this.mesh = new RigidSkinnedMesh(parts, BONE_ORDER);
+    this.mesh = new RigidSkinnedMesh(parts, BONE_ORDER, { parents: BONE_PARENTS });
     this.mesh.name = `body_${def.id}`;
     this.object.add(this.mesh);
 

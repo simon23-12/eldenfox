@@ -26,9 +26,9 @@ export class RigidSkinnedMesh extends Mesh {
    * @param {string[]} boneOrder  Knochennamen in fester Reihenfolge
    * @param {object} [o]
    */
-  constructor(parts, boneOrder, { instances = 1, material = null } = {}) {
+  constructor(parts, boneOrder, { instances = 1, material = null, parents = null } = {}) {
     const boneIndex = new Map(boneOrder.map((n, i) => [n, i]));
-    const merged = mergeParts(parts, boneIndex);
+    const merged = mergeParts(parts, boneIndex, parents);
 
     const boneCount = boneOrder.length;
     const rowsPerInstance = boneCount * 3;
@@ -39,27 +39,45 @@ export class RigidSkinnedMesh extends Mesh {
     const boneIdx = attribute('boneIdx', 'float');
     const matParams = attribute('matParams', 'vec4');
 
+    const boneIdxB = attribute('boneIdxB', 'float');
+    const boneW = attribute('boneW', 'float');
+
     /** Zeilenindex der Knochenmatrix für diesen Vertex. */
     const rowBase = Fn(() => instanceIndex.mul(uint(rowsPerInstance)).add(uint(boneIdx.mul(3.0))))();
+    /** Dasselbe für den Elternknochen (weiche Gelenke). */
+    const rowBaseB = Fn(() => instanceIndex.mul(uint(rowsPerInstance)).add(uint(boneIdxB.mul(3.0))))();
 
-    mat.positionNode = Fn(() => {
-      const b = rowBase.toVar();
-      const r0 = boneBuffer.element(b).toVar();
-      const r1 = boneBuffer.element(b.add(uint(1))).toVar();
-      const r2 = boneBuffer.element(b.add(uint(2))).toVar();
-      const p = vec4(positionLocal, 1.0).toVar();
-      return vec3(dot(p, r0), dot(p, r1), dot(p, r2));
+    /**
+     * Lineares Mischen zweier Knochenmatrizen.
+     *
+     * `boneW` ist ausserhalb der Gelenkzonen null; dort kostet die Mischung
+     * nur einen zusaetzlichen Puffergriff und liefert exakt das alte Ergebnis.
+     */
+    const skin = (v, istRichtung) => Fn(() => {
+      const a = rowBase.toVar();
+      const b = rowBaseB.toVar();
+      const w = boneW.toVar();
+
+      const a0 = boneBuffer.element(a).toVar();
+      const a1 = boneBuffer.element(a.add(uint(1))).toVar();
+      const a2 = boneBuffer.element(a.add(uint(2))).toVar();
+      const b0 = boneBuffer.element(b).toVar();
+      const b1 = boneBuffer.element(b.add(uint(1))).toVar();
+      const b2 = boneBuffer.element(b.add(uint(2))).toVar();
+
+      // Richtungen (Normalen) ignorieren die Verschiebung in Spalte w.
+      const p = istRichtung ? vec4(v, 0.0).toVar() : vec4(v, 1.0).toVar();
+      const rA = vec3(dot(p, a0), dot(p, a1), dot(p, a2)).toVar();
+      const rB = vec3(dot(p, b0), dot(p, b1), dot(p, b2)).toVar();
+      return mix(rA, rB, w);
     })();
 
+    mat.positionNode = skin(positionLocal, false);
+
     mat.normalNode = Fn(() => {
-      const b = rowBase.toVar();
-      const r0 = boneBuffer.element(b).toVar();
-      const r1 = boneBuffer.element(b.add(uint(1))).toVar();
-      const r2 = boneBuffer.element(b.add(uint(2))).toVar();
-      const n = normalLocal.toVar();
       // Knochenmatrizen sind reine Rotation plus Verschiebung, daher genügt
       // der lineare Anteil ohne inverse Transponierte.
-      return normalize(vec3(dot(n, r0.xyz), dot(n, r1.xyz), dot(n, r2.xyz)));
+      return normalize(skin(normalLocal, true));
     })();
 
     // Farbe und Materialwerte kommen als Vertexattribute; `vertexColors = true`
@@ -118,7 +136,7 @@ export class RigidSkinnedMesh extends Mesh {
 }
 
 /** Führt alle Teilgeometrien zu einer zusammen und hängt die Attribute an. */
-function mergeParts(parts, boneIndex) {
+function mergeParts(parts, boneIndex, parents) {
   let vTotal = 0, iTotal = 0;
   for (const p of parts) {
     const g = p.geometry;
@@ -140,6 +158,9 @@ function mergeParts(parts, boneIndex) {
   const color = new Float32Array(vTotal * 3);
   const matParams = new Float32Array(vTotal * 4);
   const boneIdx = new Float32Array(vTotal);
+  // Zweiter Knochen (das Elternteil) und sein Gewicht - fuer weiche Gelenke.
+  const boneIdxB = new Float32Array(vTotal);
+  const boneW = new Float32Array(vTotal);
   const index = vTotal > 65535 ? new Uint32Array(iTotal) : new Uint16Array(iTotal);
 
   const tmp = new Color();
@@ -156,6 +177,14 @@ function mergeParts(parts, boneIndex) {
     position.set(pos, vo * 3);
     if (nrm) normal.set(nrm, vo * 3);
 
+    // Weiche Bindung ans Elternteil: Vertices nahe am Drehpunkt (dem Ursprung
+    // des Knochens) folgen zur Haelfte dem Elternknochen. Dadurch knickt die
+    // Oberflaeche am Gelenk, statt als starres Segment abzuknicken.
+    const blend = p.blend ?? 0;
+    const elternName = parents ? parents[p.bone] : null;
+    const biB = (blend > 0 && elternName && boneIndex.has(elternName))
+      ? boneIndex.get(elternName) : bi;
+
     tmp.set(p.color ?? 0xffffff);
     for (let i = 0; i < n; i++) {
       color[(vo + i) * 3 + 0] = tmp.r;
@@ -166,6 +195,14 @@ function mergeParts(parts, boneIndex) {
       matParams[(vo + i) * 4 + 2] = p.emissive ?? 0.0;
       matParams[(vo + i) * 4 + 3] = 1;
       boneIdx[vo + i] = bi;
+      boneIdxB[vo + i] = biB;
+      if (blend > 0 && biB !== bi) {
+        const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
+        const d = Math.hypot(x, y, z);
+        const t = Math.min(1, Math.max(0, d / blend));
+        const glatt = t * t * (3 - 2 * t);          // smoothstep
+        boneW[vo + i] = 0.5 * (1 - glatt);          // am Drehpunkt halb/halb
+      }
     }
 
     const idx = g.index.array;
@@ -181,6 +218,8 @@ function mergeParts(parts, boneIndex) {
   geo.setAttribute('color', new BufferAttribute(color, 3));
   geo.setAttribute('matParams', new BufferAttribute(matParams, 4));
   geo.setAttribute('boneIdx', new BufferAttribute(boneIdx, 1));
+  geo.setAttribute('boneIdxB', new BufferAttribute(boneIdxB, 1));
+  geo.setAttribute('boneW', new BufferAttribute(boneW, 1));
   geo.setIndex(new BufferAttribute(index, 1));
   geo.boundingSphere = new Sphere(new Vector3(0, 1, 0), 2.5);
   geo.boundingBox = new Box3(new Vector3(-1.5, -0.5, -1.5), new Vector3(1.5, 2.6, 1.5));

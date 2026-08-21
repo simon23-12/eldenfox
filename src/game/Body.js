@@ -28,8 +28,13 @@ function place(geo, { pos = [0, 0, 0], rot = [0, 0, 0], scale = null } = {}) {
 }
 
 /** Konisches Glied: unten dicker als oben, wie ein echter Arm oder Schenkel. */
-function limb(rTop, rBot, len, seg = 10) {
-  const g = new CylinderGeometry(rTop, rBot, len, seg, 1, false);
+/**
+ * @param {number} ringe Hoehensegmente. Fuer Gliedmassen mit weicher
+ *   Gelenkbindung braucht es Zwischenringe - mit nur zwei Ringen hat die
+ *   Ueberblendung keine Vertices, an denen sie eine Beugung ausbilden kann.
+ */
+function limb(rTop, rBot, len, seg = 10, ringe = 1) {
+  const g = new CylinderGeometry(rTop, rBot, len, seg, ringe, false);
   g.translate(0, -len / 2, 0);
   return g;
 }
@@ -53,6 +58,15 @@ export function buildBody(d) {
   const P = [];
   const push = (bone, geometry, color, roughness = 0.72, metalness = 0.0, emissive = 0.0) =>
     P.push({ bone, geometry, color, roughness, metalness, emissive });
+
+  /**
+   * Wie `push`, aber mit weicher Bindung ans Elternteil. `blend` ist der
+   * Radius um den Drehpunkt, in dem die Oberflaeche zwischen Knochen und
+   * Elternknochen ueberblendet - so knickt ein Glied am Gelenk, statt als
+   * starres Segment abzustehen.
+   */
+  const pushWeich = (bone, geometry, color, roughness, blend, metalness = 0.0) =>
+    P.push({ bone, geometry, color, roughness, metalness, emissive: 0.0, blend });
 
   const s = d.scale ?? 1.0;
   const bulk = d.bulk ?? 1.0;                 // Breite von Brustkorb und Gliedern
@@ -151,9 +165,9 @@ export function buildBody(d) {
     // gebunden, zwischen ihnen klafft beim Beugen eine Luecke. Eine Kugel im
     // Drehpunkt bleibt beim Drehen an Ort und Stelle und schliesst sie.
     push(`arm${side}`, place(new SphereGeometry(0.054 * bulk, 10, 8), { pos: [0, 0, 0] }), cloth, clothRough);
-    push(`arm${side}`, place(limb(0.052 * bulk, 0.046 * bulk, 0.245), { pos: [sx * 0.245, 0, 0], rot: [0, 0, sx * 90] }), cloth, clothRough);
+    pushWeich(`arm${side}`, place(limb(0.052 * bulk, 0.046 * bulk, 0.245, 10, 5), { pos: [sx * 0.245, 0, 0], rot: [0, 0, sx * 90] }), cloth, clothRough, 0.085);
     push(`forearm${side}`, place(new SphereGeometry(0.049 * bulk, 10, 8), { pos: [0, 0, 0] }), leather, leatherRough);
-    push(`forearm${side}`, place(limb(0.048 * bulk, 0.040 * bulk, 0.225), { pos: [sx * 0.225, 0, 0], rot: [0, 0, sx * 90] }), leather, leatherRough);
+    pushWeich(`forearm${side}`, place(limb(0.048 * bulk, 0.040 * bulk, 0.225, 10, 5), { pos: [sx * 0.225, 0, 0], rot: [0, 0, sx * 90] }), leather, leatherRough, 0.080);
     if (d.bracers !== false) {
       push(`forearm${side}`, place(new CylinderGeometry(0.056, 0.050, 0.13, 10),
         { pos: [sx * 0.16, 0, 0], rot: [0, 0, sx * 90] }), armor, armorRough, armorMetal);
@@ -164,9 +178,9 @@ export function buildBody(d) {
   /* ------------------------------ Beine ------------------------------ */
   for (const side of ['L', 'R']) {
     push(`thigh${side}`, place(new SphereGeometry(0.084 * bulk, 10, 8), { pos: [0, 0, 0] }), cloth2, clothRough);
-    push(`thigh${side}`, place(limb(0.082 * bulk, 0.070 * bulk, 0.40), { pos: [0, 0, 0] }), cloth2, clothRough);
+    pushWeich(`thigh${side}`, place(limb(0.082 * bulk, 0.070 * bulk, 0.40, 10, 6), { pos: [0, 0, 0] }), cloth2, clothRough, 0.130);
     push(`shin${side}`, place(new SphereGeometry(0.068 * bulk, 10, 8), { pos: [0, 0, 0] }), cloth2, clothRough);
-    push(`shin${side}`, place(limb(0.066 * bulk, 0.050 * bulk, 0.39), { pos: [0, 0, 0] }), cloth2, clothRough);
+    pushWeich(`shin${side}`, place(limb(0.066 * bulk, 0.050 * bulk, 0.39, 10, 6), { pos: [0, 0, 0] }), cloth2, clothRough, 0.110);
     if (d.greaves !== false) {
       push(`shin${side}`, place(new CylinderGeometry(0.074, 0.058, 0.24, 10), { pos: [0, -0.10, 0.004] }), armor, armorRough, armorMetal);
     }
