@@ -135,7 +135,7 @@ export function chromaticAberration(colorNode, {
  * Fahrten und Rollen exakt – also genau den Teil, der etwas beiträgt.
  */
 export function cameraMotionBlur(colorNode, velocityTextureNode, {
-  strength, maxLengthPx = 26, samples = 10,
+  strength, maxLengthPx = 26, samples = 10, deadZonePx = 2.0,
 } = {}) {
   const src = rtt(colorNode);
   const n = Math.max(3, samples | 0);
@@ -156,8 +156,15 @@ export function cameraMotionBlur(colorNode, velocityTextureNode, {
 
     const texel = vec2(1.0).div(screenSize).toVar();
     const lenPx = length(v0.div(texel)).toVar();
-    const scale = min(float(1.0), float(maxLengthPx).div(max(1e-3, lenPx))).toVar();
-    const v = v0.mul(scale).toVar();
+
+    // Totzone: der Kameraarm korrigiert dauernd um Bruchteile eines Pixels
+    // nach. Ohne Schwelle liegt deshalb immer etwas Bewegung an und das Bild
+    // ist nie ganz scharf. Unter `deadZonePx` wird gar nicht verwischt,
+    // darueber weich eingeblendet.
+    const nutzbar = max(0.0, lenPx.sub(float(deadZonePx))).toVar();
+    const anteil = nutzbar.div(max(1e-3, lenPx)).toVar();
+    const scale = min(float(1.0), float(maxLengthPx).div(max(1e-3, nutzbar))).toVar();
+    const v = v0.mul(anteil).mul(scale).toVar();
 
     const jitter = fract(sin(dot(screenUV.mul(screenSize), vec2(12.9898, 78.233)).add(time.mul(11.3))).mul(43758.5453)).toVar();
 
@@ -174,7 +181,7 @@ export function cameraMotionBlur(colorNode, velocityTextureNode, {
     });
 
     const blurred = acc.div(max(1e-4, wsum)).toVar();
-    const k = saturate(lenPx.mul(0.22)).toVar();
+    const k = saturate(nutzbar.mul(0.22)).toVar();
     return vec4(mix(center, blurred, k), 1.0);
   })();
 }

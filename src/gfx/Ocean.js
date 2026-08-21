@@ -479,8 +479,14 @@ export class Ocean {
 
       this.cascades.forEach((c, i) => {
         const uv = worldXZ.div(float(c.patch));
-        // feine Kaskaden in der Ferne ausblenden -> kein Aliasing am Horizont
-        const fade = i === 0 ? float(1.0)
+        // Feine Kaskaden in der Ferne ausblenden -> kein Aliasing am Horizont.
+        // Kaskade 0 stand hier auf 1.0 und blieb damit als einzige bis zum
+        // Horizont voll aktiv - ungefiltert (textureLevel mit Stufe 0) und
+        // unter streifendem Blick. Das ergab das koernige dunkle Band ueber
+        // dem Wasser. Sie klingt jetzt ebenfalls ab, nur viel spaeter, damit
+        // die grosse Duenung nah am Ufer erhalten bleibt.
+        const fade = i === 0
+          ? saturate(float(1.0).sub(smoothstep(float(900.0), float(4200.0), lodFade)))
           : saturate(float(1.0).sub(smoothstep(float(120.0), float(700.0), lodFade)));
         const a = textureLevel(c.outA, uv, 0).toVar();
         const b = textureLevel(c.outB, uv, 0).toVar();
@@ -502,7 +508,7 @@ export class Ocean {
       const { disp } = sampleWaves(worldXZ, r);
 
       // ganz außen flach auslaufen lassen, damit der Horizont ruhig bleibt
-      const horizonFade = saturate(float(1.0).sub(smoothstep(float(2500.0), float(9000.0), r))).toVar();
+      const horizonFade = saturate(float(1.0).sub(smoothstep(float(1500.0), float(5200.0), r))).toVar();
 
       // Erdkrümmung: ohne sie bleibt die Ebene bis zum Meshrand auf Höhe null
       // und endet als sichtbare Kante *über* dem echten Horizont.
@@ -581,7 +587,7 @@ export class Ocean {
     mat.roughnessNode = Fn(() => {
       const f = foam.toVar();
       // Entfernungsabhängig aufrauen: bekämpft das Funkelaliasing am Horizont
-      const distRough = smoothstep(float(80.0), float(1600.0), radialFrag).mul(0.18).toVar();
+      const distRough = smoothstep(float(80.0), float(3000.0), radialFrag).mul(0.38).toVar();
       return clamp(this.roughnessBase.add(distRough).add(f.mul(0.70)), 0.02, 1.0);
     })();
 
