@@ -23,6 +23,25 @@ function progress(p, msg) {
   if (msg) bootmsg.textContent = msg;
 }
 
+/**
+ * Gibt den Hauptfaden frei, bis der Browser wirklich gezeichnet hat.
+ *
+ * `await` auf eine bereits erfüllte Promise reicht nicht: Mikrotasks laufen
+ * noch vor dem Zeichnen. Ohne diesen Umweg bleibt das zuletzt gezeichnete Bild
+ * stehen, während der Ladepfad den Faden minutenlang blockiert – die Seite
+ * sieht dann eingefroren aus, obwohl sie arbeitet.
+ */
+function nextPaint() {
+  // Im Hintergrundtab feuert rAF nicht. Ohne den Zeitgeber als Ausweg bliebe
+  // der Ladepfad dort für immer stehen.
+  return new Promise((r) => {
+    let done = false;
+    const fin = () => { if (!done) { done = true; r(); } };
+    requestAnimationFrame(() => requestAnimationFrame(fin));
+    setTimeout(fin, 120);
+  });
+}
+
 /** Grobe Voreinstellung anhand der Bildschirmfläche. */
 function guessQuality() {
   const stored = localStorage.getItem('eldenfox.quality');
@@ -60,12 +79,14 @@ async function boot() {
   const startStage = new URLSearchParams(location.search).get('level') === '2' ? 2 : 1;
 
   progress(0.68, startStage === 2 ? 'Insel heben…' : 'Küste formen…');
+  await nextPaint();          // Ladebalken sichtbar machen, bevor der Faden blockiert
   let level = startStage === 2
     ? await buildLevel2(engine, world, { quality: qScale })
     : await buildLevel1(engine, world, { quality: qScale });
   world.level = level;
 
   progress(0.84, `${choice.name} erwacht…`);
+  await nextPaint();
   const player = new Player({ ...choice, faction: 'player' }, world);
   player.position.copy(level.spawn);
   player.facing = 0;                // Eröffnungsblick auf die Abendsee
@@ -88,7 +109,19 @@ async function boot() {
   };
 
   progress(0.92, 'Renderpfad übersetzen…');
+  await nextPaint();
   engine.buildPipeline();
+
+  // Die Shader des ersten Bildes übersetzt der Treiber sonst mitten im ersten
+  // renderSync() – auf langsameren GPUs steht der Faden dabei sehr lange still.
+  // compileAsync() zieht das vor und lässt den Browser zwischendurch zeichnen.
+  progress(0.96, 'Shader übersetzen…');
+  await nextPaint();
+  try {
+    await engine.renderer.compileAsync(engine.scene, engine.camera);
+  } catch (err) {
+    console.warn('compileAsync übersprungen:', err);
+  }
 
   /* ------------------------------------------------------------------ Ablauf */
 
