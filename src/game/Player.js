@@ -42,8 +42,11 @@ export class Player extends Character {
 
     const yaw = cam.yaw;
     const fx = Math.sin(yaw), fz = Math.cos(yaw);
-    // -iy nach vorn: Bildschirm oben = weg von der Kamera
-    this.moveInput.set(fx * -iy + fz * ix, 0, fz * -iy - fx * ix);
+    // (sin yaw, cos yaw) zeigt vom Spieler zur Kamera, also nach hinten – die
+    // Kamera sitzt in CameraRig auf `look + dir * distance`. Nach vorn geht es
+    // demnach mit +iy, nicht mit -iy. Mit -iy lief W rueckwaerts und S vorwaerts.
+    // Das Seitwaertsglied (ix) bleibt unveraendert, es stimmte schon.
+    this.moveInput.set(fx * iy + fz * ix, 0, fz * iy - fx * ix);
     if (this.moveInput.lengthSq() > 1e-6) this.moveInput.normalize();
 
     /* --- Anvisieren umschalten --- */
