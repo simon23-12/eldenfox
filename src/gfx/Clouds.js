@@ -22,6 +22,9 @@ import {
  * Henyey-Greenstein-Phase und einem Powder-Term für die dunklen Ränder, die
  * echte Wolken von Wattebäuschen unterscheiden.
  */
+/** Groesste erlaubte Schrittweite im Raymarch, in Metern. */
+const MAX_STEP_LEN = 60;
+
 export class Clouds {
   constructor({
     atmosphere, sky, seed = 3,
@@ -177,8 +180,25 @@ export class Clouds {
 
       const start = max(tEnter, 0.0).toVar();
       const end = min(min(tExit, maxDist), this.maxDistance).toVar();
-      const span = max(0.0, end.sub(start)).toVar();
+      const span0 = max(0.0, end.sub(start)).toVar();
+
+      // Schrittweite deckeln. Bei fester Schrittzahl waechst sie mit der
+      // Marschstrecke: nach oben durchquert der Strahl die Schicht in rund
+      // 1000 m (Schritt ~18 m), waagerecht wird die Strecke bis zur vollen
+      // Reichweite gestreckt und der Schritt erreicht mehrere hundert Meter -
+      // weit ueber der Groesse der Wolkenstrukturen. Daher das blockige Band
+      // ueber dem Horizont, sichtbar sobald die Kamera tief steht.
+      const spanMax = float(this.steps * MAX_STEP_LEN);
+      const span = min(span0, spanMax).toVar();
       const valid = step(1.0, span).toVar();          // 1, wenn es etwas zu marschieren gibt
+
+      // Nahe der Waagerechten reicht selbst die gedeckelte Strecke nicht mehr
+      // durch die Schicht. Statt sie abzuschneiden weich ausblenden - ferne
+      // Wolken verschwinden ohnehin im Dunst.
+      // Nur wirklich streifende Strahlen ausblenden. Ein breiteres Band
+      // getestet - es nimmt sichtbar Wolken weg, ohne die Kachelung zu
+      // beheben, um die es eigentlich geht.
+      const horizont = smoothstep(float(0.015), float(0.075), abs(dy)).toVar();
 
       const stepLen = span.div(float(this.steps)).toVar();
 
@@ -221,7 +241,10 @@ export class Clouds {
         });
       });
 
-      return vec4(scattered, mix(float(1.0), transmittance, valid));
+      // Horizontausblendung wirkt auf Streulicht und Deckkraft gleichermassen,
+      // sonst bliebe eine helle Kante stehen.
+      const w = valid.mul(horizont).toVar();
+      return vec4(scattered.mul(horizont), mix(float(1.0), transmittance, w));
     });
   }
 
